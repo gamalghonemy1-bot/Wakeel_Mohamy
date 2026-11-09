@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>وكيل محامي</title>
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--tx:#1c2430;--mu:#6b7280;--pr:#1f3a5f;--ac:#b8893a;--bd:#e3dfd5;--rd:#b3261e;color-scheme:light dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121821;--card:#1b2431;--tx:#e8ebf0;--mu:#97a1b0;--pr:#6f9bd1;--ac:#d9a94f;--bd:#2b3646;--rd:#ff8a80}}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--tx);font-family:"Segoe UI",Tahoma,"Noto Naskh Arabic",Arial,sans-serif;font-size:16px;padding-bottom:76px}
+header{background:var(--pr);color:#fff;padding:14px 16px;font-weight:700;font-size:19px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center}
+header button{background:none;border:0;color:#fff;font-size:14px}
+main{max-width:760px;margin:0 auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{text-align:center}.stat b{display:block;font-size:26px;color:var(--pr)}
+button.b,.b{background:var(--pr);color:#fff;border:0;border-radius:10px;padding:11px 14px;font-size:15px;font-family:inherit;width:100%;margin-top:8px}
+.b.s{background:var(--card);color:var(--pr);border:1px solid var(--pr)}.b.d{background:var(--rd)}.b.a{background:var(--ac)}
+input,select,textarea{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font-family:inherit;font-size:15px;margin:4px 0 8px}
+label{font-size:13px;color:var(--mu)}textarea{min-height:80px}
+nav{position:fixed;bottom:0;inset-inline:0;background:var(--card);border-top:1px solid var(--bd);display:flex;padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;background:none;border:0;padding:10px 2px;font-size:12px;color:var(--mu);font-family:inherit}nav button.on{color:var(--pr);font-weight:700}
+nav span{display:block;font-size:20px}
+.tag{display:inline-block;background:var(--bg);border:1px solid var(--bd);border-radius:20px;padding:2px 10px;font-size:12px;color:var(--mu);margin-inline-end:4px}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:center}.mu{color:var(--mu);font-size:13px}
+pre.out{white-space:pre-wrap;font-family:inherit;line-height:1.9;margin:0}
+.warn{background:#fff4d6;color:#5c4400;border-radius:8px;padding:8px;font-size:13px}
+#lock[hidden]{display:none}#lock{position:fixed;inset:0;background:var(--bg);z-index:20;display:flex;align-items:center;justify-content:center;padding:20px}
+</style></head><body>
+
+<div id="lock" hidden><div class="card" style="width:100%;max-width:340px;text-align:center"><h2>⚖️ وكيل محامي</h2><p id="lmsg"></p><input id="lk" placeholder="كود التفعيل" dir="ltr"><button class="b" onclick="activate()">تفعيل</button><div id="lerr" class="mu"></div><button class="b s" onclick="dl('backup-lawyer.json',new Blob([JSON.stringify(S)],{type:'application/json'}))">تصدير نسخة احتياطية لبياناتك</button></div></div>
+<header><span id="ttl">وكيل محامي</span></header>
+<main id="m"></main>
+<nav id="nv"></nav>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const KEY='lawyer_agent_v1';
+let S={cases:[],types:['أسرة وأحوال شخصية','مدني','جنح','جنايات','تجاري','عمالي','إداري'],pw:''};
+try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){alert('تعذر الحفظ على هذا الجهاز')}try{sched()}catch(e){}};
+const cairo=d=>d.toLocaleDateString('en-CA',{timeZone:'Africa/Cairo'});
+const today=()=>cairo(new Date());
+const tomorrow=()=>cairo(new Date(Date.now()+864e5));
+const sha=async t=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)))].map(b=>b.toString(16).padStart(2,'0')).join('');
+let view='home',cur=null,q='',flt='';
+const tabs=[['home','🏠','الرئيسية'],['cases','📁','القضايا'],['ai','🤖','الاستشارات'],['tom','🔔','جلسات الغد'],['set','⚙️','الإعدادات']];
+function go(v,id){view=v;cur=id??null;render();scrollTo(0,0)}
+function render(){
+ $('#nv').innerHTML=tabs.map(t=>`<button class="${view===t[0]?'on':''}" onclick="go('${t[0]}')"><span>${t[1]}</span>${t[2]}</button>`).join('');
+ const f={home,cases,form,ai,tom,set,detail}[view];$('#m').innerHTML=f();
+}
+const live=()=>S.cases.filter(c=>!c.archived);
+function home(){
+ const L=live(),t=today(),n=tomorrow();
+ const by=S.types.map(x=>[x,L.filter(c=>c.type===x).length]).filter(x=>x[1]);
+ const item=c=>`<div class="row" onclick="go('detail','${c.id}')"><span>${esc(c.client)} — ${esc(c.no)}</span><span class="mu">${esc(c.court)}</span></div>`;
+ const T=L.filter(c=>c.date===t),N=L.filter(c=>c.date===n);
+ return `<div class="grid"><div class="card stat"><b>${L.length}</b>إجمالي القضايا</div><div class="card stat"><b>${N.length}</b>جلسات الغد</div></div>
+ <button class="b" onclick="go('form')">➕ إضافة قضية</button><div class="grid"><button class="b s" onclick="go('ai')">🤖 الاستشارات القانونية</button><button class="b s" onclick="go('tom')">🔔 جلسات الغد</button></div>
+ <div class="card" style="margin-top:10px"><b>القضايا حسب الاختصاص</b><br>${by.map(x=>`<span class="tag">${esc(x[0])}: ${x[1]}</span>`).join('')||'<span class="mu">لا توجد قضايا بعد</span>'}</div>
+ <div class="card"><b>جلسات اليوم</b>${T.map(item).join('')||'<div class="mu">لا جلسات اليوم</div>'}</div>
+ <div class="card"><b>جلسات الغد</b>${N.map(item).join('')||'<div class="mu">لا جلسات غداً</div>'}</div>
+ <div class="card"><b>آخر القضايا المضافة</b>${L.slice(-5).reverse().map(item).join('')||'<div class="mu">—</div>'}</div>`;
+}
+function cases(){
+ let L=S.cases.filter(c=>flt==='arch'?c.archived:!c.archived&&(!flt||c.type===flt));
+ if(q)L=L.filter(c=>(c.client+' '+c.no).includes(q));
+ L.sort((a,b)=>(a.date||'9').localeCompare(b.date||'9'));
+ return `<input placeholder="🔍 بحث باسم الموكل أو رقم القضية" value="${esc(q)}" oninput="q=this.value;render();document.querySelector('input').focus()">
+ <select onchange="flt=this.value;render()"><option value="">كل الاختصاصات</option>${S.types.map(x=>`<option ${flt===x?'selected':''}>${esc(x)}</option>`).join('')}<option value="arch" ${flt==='arch'?'selected':''}>الأرشيف</option></select>
+ <button class="b" onclick="go('form')">➕ قضية جديدة</button><div style="height:10px"></div>
+ ${L.map(c=>`<div class="card" onclick="go('detail','${c.id}')"><div class="row"><b>${esc(c.client)}</b><span class="tag">${esc(c.type)}</span></div><div class="mu">رقم ${esc(c.no)} — ${esc(c.court)}</div><div class="mu">الجلسة القادمة: ${esc(c.date||'غير محددة')}</div></div>`).join('')||'<div class="mu">لا توجد قضايا</div>'}`;
+}
+const fld=[['client','اسم الموكل'],['no','رقم القضية'],['court','المحكمة والدائرة'],['opp','اسم الخصم']];
+function form(){
+ const c=cur?S.cases.find(x=>x.id===cur):{};
+ return `<div class="card">${fld.map(f=>`<label>${f[1]}</label><input id="f_${f[0]}" value="${esc(c[f[0]])}">`).join('')}
+ <label>نوع القضية</label><select id="f_type">${S.types.map(x=>`<option ${c.type===x?'selected':''}>${esc(x)}</option>`).join('')}</select>
+ <label>تاريخ الجلسة القادمة</label><input id="f_date" type="date" value="${esc(c.date)}">
+ <label>موضوع القضية وملخصها</label><textarea id="f_sum">${esc(c.sum)}</textarea>
+ <label>آخر إجراء</label><input id="f_last" value="${esc(c.last)}">
+ <label>المطلوب تحضيره للجلسة</label><input id="f_todo" value="${esc(c.todo)}">
+ <label>ملاحظات المحامي</label><textarea id="f_notes">${esc(c.notes)}</textarea>
+ <button class="b" onclick="saveCase()">حفظ</button><button class="b s" onclick="go('cases')">إلغاء</button></div>`;
+}
+function saveCase(){
+ const o={};[...fld.map(f=>f[0]),'type','date','sum','last','todo','notes'].forEach(k=>o[k]=$('#f_'+k).value.trim());
+ if(!o.client||!o.no){alert('اسم الموكل ورقم القضية مطلوبان');return}
+ if(cur){Object.assign(S.cases.find(x=>x.id===cur),o)}else S.cases.push({id:'c'+Date.now(),...o,docs:[]});
+ save();go('cases');
+}
+function detail(){
+ const c=S.cases.find(x=>x.id===cur);if(!c)return'';
+ const rows=[['رقم القضية',c.no],['النوع',c.type],['المحكمة',c.court],['الخصم',c.opp],['الجلسة القادمة',c.date],['الملخص',c.sum],['آخر إجراء',c.last],['المطلوب للجلسة',c.todo],['ملاحظات',c.notes]];
+ const same=S.cases.filter(x=>x.client===c.client&&x.id!==c.id);
+ return `<div class="card"><h3>${esc(c.client)}</h3>${rows.map(r=>`<div><span class="mu">${r[0]}:</span> ${esc(r[1])||'—'}</div>`).join('')}</div>
+ ${same.length?`<div class="card"><b>قضايا أخرى لنفس الموكل</b>${same.map(x=>`<div onclick="go('detail','${x.id}')">${esc(x.no)} — ${esc(x.type)}</div>`).join('')}</div>`:''}
+ ${c.study?`<div class="card"><b>آخر دراسة محفوظة</b><pre class="out">${esc(c.study)}</pre></div>`:''}
+ <button class="b a" onclick="aiCase='${c.id}';go('ai')">🤖 دراسة القضية بالذكاء الاصطناعي</button>
+ <button class="b s" onclick="go('form','${c.id}')">تعديل</button>
+ <button class="b s" onclick="arch('${c.id}')">${c.archived?'إلغاء الأرشفة':'أرشفة'}</button>
+ <button class="b d" onclick="del('${c.id}')">حذف</button>`;
+}
+function arch(id){const c=S.cases.find(x=>x.id===id);c.archived=!c.archived;save();go('cases')}
+function del(id){if(confirm('حذف القضية نهائياً؟')){S.cases=S.cases.filter(x=>x.id!==id);save();go('cases')}}
+function tom(){
+ const L=live().filter(c=>c.date===tomorrow());
+ const up=live().filter(c=>c.date>tomorrow()).sort((a,b)=>a.date.localeCompare(b.date));
+ const card=c=>`<div class="card" onclick="go('detail','${c.id}')"><b>${esc(c.client)}</b> — ${esc(c.no)}<div class="mu">${esc(c.type)} | ${esc(c.court)}</div><div>آخر إجراء: ${esc(c.last)||'—'}</div><div>المطلوب: ${esc(c.todo)||'—'}</div></div>`;
+ return `<h3>جلسات الغد (${tomorrow()})</h3>${L.map(card).join('')||'<div class="card mu">لا جلسات غداً</div>'}
+ <h3>الجلسات القادمة</h3>${up.map(c=>`<div class="card" onclick="go('detail','${c.id}')">${esc(c.date)} — ${esc(c.client)} (${esc(c.no)})</div>`).join('')||'<div class="mu">—</div>'}
+ <div class="warn">يصلك إشعار يومياً الساعة 6 مساءً بجلسات اليوم التالي حتى لو التطبيق مغلق.</div>
+ <button class="b s" onclick="askNotif()">تفعيل الإشعارات على هذا الجهاز</button>`;
+}
+function askNotif(){sched().then(()=>alert('تم'))}
+async function sched(){try{const N=Capacitor.Plugins.LocalNotifications;if(!N)return;
+ let p=await N.checkPermissions();if(p.display!=='granted'){p=await N.requestPermissions();if(p.display!=='granted')return}
+ const pend=await N.getPending();if(pend.notifications.length)await N.cancel({notifications:pend.notifications});
+ const by={};live().forEach(c=>{if(c.date)(by[c.date]=by[c.date]||[]).push(c)});
+ const out=[];let i=1;
+ for(const d of Object.keys(by).sort()){const [y,m,dd]=d.split('-').map(Number),at=new Date(y,m-1,dd-1,18,0,0);if(at<=new Date())continue;
+  out.push({id:i++,title:'جلسات الغد ('+by[d].length+')',body:by[d].map(c=>c.client+' - '+c.no+' - '+c.court+(c.todo?' - المطلوب: '+c.todo:'')).join('\n'),schedule:{at,allowWhileIdle:true}})}
+ if(out.length)await N.schedule({notifications:out})}catch(e){}}
+let aiCase='',aiText='',busy=false,aiImgs=[];
+function ai(){
+ const c=aiCase?S.cases.find(x=>x.id===aiCase):null;
+ return `<div class="card"><label>القضية</label><select onchange="aiCase=this.value;render()"><option value="">— بدون ربط —</option>${live().map(x=>`<option value="${x.id}" ${x.id===aiCase?'selected':''}>${esc(x.client)} - ${esc(x.no)}</option>`).join('')}</select>
+ <label>وقائع القضية / نصوص المستندات (الصق النص أو ارفع ملف نصي)</label><textarea id="a_txt" style="min-height:160px"></textarea>
+ <label>رفع ملف نصي (.txt) أو صور مستندات</label><input type="file" id="a_file" accept=".txt,image/*" multiple onchange="readF(this)">
+ <div id="a_info" class="mu">${aiImgs.length?aiImgs.length+' صورة مرفقة':''}</div>
+ <button class="b a" id="a_go" onclick="runAI()" ${busy?'disabled':''}>${busy?'جارٍ الدراسة...':'ادرس القضية'}</button>
+ <div class="warn" style="margin-top:8px">ملفات PDF وWord: انسخ النص والصقه هنا. المخرجات مسودة تحتاج مراجعة المحامي، وتحقق من المواد والأحكام قبل الاستناد إليها.</div></div>
+ ${aiText?`<div class="card"><pre class="out" id="a_out">${esc(aiText)}</pre><button class="b" onclick="saveStudy()">حفظ الدراسة في القضية</button><button class="b s" onclick="expDoc()">تصدير Word</button></div>`:''}`;
+}
+async function readF(el){
+ for(const f of el.files){if(f.type.startsWith('image/'))aiImgs.push(f);else{const t=await f.text();$('#a_txt').value+='\n'+t}}
+ $('#a_info').textContent=aiImgs.length?aiImgs.length+' صورة مرفقة':'';
+}
+async function runAI(){
+  const c=aiCase?S.cases.find(x=>x.id===aiCase):null,txt=$('#a_txt').value;
+ if(!txt.trim()&&!aiImgs.length&&!c){alert('أدخل وقائع القضية أو ارفع مستنداً');return}
+ busy=true;aiText='';render();
+ const p=`أنت مساعد قانوني لمحامٍ مصري. ادرس القضية وأجب بالعربية بهذه الأقسام المرقمة: 1) ملخص الوقائع وترتيب الأحداث 2) نقاط القوة والضعف 3) التناقضات والثغرات القانونية والإجرائية 4) الدفوع المقترحة، ولكل دفع: القانون المصري ورقم المادة وكيفية الاستناد إليها في المرافعة 5) أحكام النقض ذات الصلة 6) مسودة مذكرة دفاع.
+قواعد صارمة: لا تختلق رقم مادة ولا حكماً ولا رقم طعن. إن لم تكن متأكداً اكتب «غير متأكد — يراجع المحامي النص الحالي». نبّه إلى أن المواد قد تكون عُدّلت وأن التحقق من آخر تعديل واجب.
+${c?`بيانات القضية: الموكل ${c.client}، رقم ${c.no}، النوع ${c.type}، المحكمة ${c.court}، الخصم ${c.opp}، الموضوع: ${c.sum}، آخر إجراء: ${c.last}، ملاحظات: ${c.notes}\n`:''}
+المستندات والوقائع:\n${txt}`;
+ try{
+  const imgs=[];for(const f of aiImgs.slice(0,5))imgs.push({type:'image/jpeg',data:await b64(f)});
+  const r=await fetch(API+'/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:DEV,code:CODE,prompt:p,images:imgs})});
+  const d=await r.json();aiText=d.text||(d.error==='license'?'انتهى الترخيص، أدخل كود التفعيل':'تعذر إتمام الدراسة');
+ }catch(e){aiText='تعذر الاتصال بالخادم، تأكد من الإنترنت'}
+ busy=false;aiImgs=[];render();
+}
+function saveStudy(){if(!aiCase){alert('اختر قضية أولاً لحفظ الدراسة فيها');return}S.cases.find(x=>x.id===aiCase).study=aiText;save();alert('تم الحفظ');go('detail',aiCase)}
+async function dl(name,data){try{const C=Capacitor.Plugins,t=typeof data==='string'?data:await data.text();await C.Filesystem.writeFile({path:name,data:t,directory:'CACHE',encoding:'utf8'});const u=await C.Filesystem.getUri({path:name,directory:'CACHE'});await C.Share.share({title:name,url:u.uri})}catch(e){alert('تعذر الحفظ')}}
+async function b64(f){const bm=await createImageBitmap(f),k=Math.min(1,1600/Math.max(bm.width,bm.height)),cv=document.createElement('canvas');cv.width=bm.width*k;cv.height=bm.height*k;cv.getContext('2d').drawImage(bm,0,0,cv.width,cv.height);return cv.toDataURL('image/jpeg',.8).split(',')[1]}
+function expDoc(){dl('مذكرة.doc',new Blob(['\ufeff<html dir="rtl"><meta charset="utf-8"><body style="font-family:Arial"><pre style="white-space:pre-wrap;font-family:Arial">'+esc(aiText)+'</pre></body></html>'],{type:'application/msword'}))}
+function set(){
+ return `
+ <div class="card"><b>نسخ احتياطي</b><button class="b" onclick="dl('backup-lawyer.json',new Blob([JSON.stringify(S)],{type:'application/json'}))">تصدير نسخة احتياطية</button>
+ <label>استعادة من ملف</label><input type="file" accept=".json" onchange="restore(this)"></div>
+ <div class="card"><b>الاختصاصات</b><div>${S.types.map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div><input id="s_t" placeholder="اختصاص جديد"><button class="b s" onclick="addT()">إضافة</button></div>
+ <div class="warn">البيانات محفوظة على هذا الجهاز/المتصفح فقط. خذ نسخة احتياطية دورياً.</div>`;
+}
+
+function addT(){const v=$('#s_t').value.trim();if(v&&!S.types.includes(v)){S.types.push(v);save();render()}}
+async function restore(el){try{const d=JSON.parse(await el.files[0].text());if(!Array.isArray(d.cases))throw 0;if(confirm('استبدال البيانات الحالية؟')){S=Object.assign(S,d);save();render()}}catch(e){alert('ملف غير صالح')}}
+
+if(S.pw){S.pw='';save()}
+const API='https://REPLACE_WITH_YOUR_WORKER.workers.dev';
+let DEV=localStorage.getItem('la_dev');if(!DEV){DEV=(crypto.randomUUID?crypto.randomUUID():Date.now()+''+Math.random());localStorage.setItem('la_dev',DEV)}
+let CODE=localStorage.getItem('la_code')||'',ST=null;
+const post=(p,b)=>fetch(API+p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
+async function status(){
+ try{ST=await post('/status',{device:DEV,code:CODE});ST.at=Date.now();localStorage.setItem('la_st',JSON.stringify(ST))}
+ catch(e){try{ST=JSON.parse(localStorage.getItem('la_st'));if(!ST||!ST.ok||Date.now()-ST.at>3*864e5)ST={ok:false,offline:true}}catch(x){ST={ok:false,offline:true}}}
+ gate();
+}
+function gate(){
+ if(ST&&ST.ok){$('#lock').hidden=true;$('#ttl').textContent=ST.plan==='trial'?'وكيل محامي — تجريبي: باقي '+ST.left+' يوم':'وكيل محامي'}
+ else{$('#lock').hidden=false;$('#lmsg').textContent=ST&&ST.offline?'يلزم اتصال بالإنترنت للتحقق من الترخيص.':'انتهت النسخة التجريبية (10 أيام) أو الكود غير صالح. أدخل كود التفعيل للاستمرار.'}
+}
+async function activate(){
+ const v=$('#lk').value.trim();
+ try{const r=await post('/activate',{device:DEV,code:v});if(r.ok){CODE=v;localStorage.setItem('la_code',v);await status()}else $('#lerr').textContent=r.reason==='used'?'الكود مستخدم على جهاز آخر':'الكود غير صحيح'}
+ catch(e){$('#lerr').textContent='تعذر الاتصال بالخادم'}
+}
+render();sched();status();
+</script></body></html>
